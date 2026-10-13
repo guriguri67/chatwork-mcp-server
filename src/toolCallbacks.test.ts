@@ -41,6 +41,7 @@ import {
   updateRoomMembers,
   updateRoomMessage,
   updateRoomTaskStatus,
+  uploadRoomFile,
 } from './toolCallbacks';
 
 /** ChatworkClientRequest は export されていないので、メソッドの引数型から取り出す */
@@ -534,6 +535,67 @@ describe('toolCallbacks.ts', () => {
           { type: 'text', text: 'Error: status code 500' },
           { type: 'resource', resource: { uri, text: response } },
         ],
+      });
+    });
+  });
+
+  describe('#uploadRoomFile', () => {
+    // request ではなく uploadFile 経由なので専用の spy を使う
+    let uploadFile: MockInstance<ChatworkClient['uploadFile']>;
+
+    beforeEach(() => {
+      uploadFile = vi.spyOn(ChatworkClient.prototype, 'uploadFile');
+    });
+
+    test('Base64をデコードしてファイル名・メッセージとともに送信する', async () => {
+      const uri = 'https://api.chatwork.com/v2/rooms/1/files';
+      uploadFile.mockResolvedValue({
+        uri,
+        ok: true,
+        status: 200,
+        response: '{"file_id":1}',
+      });
+
+      await expect(
+        uploadRoomFile({
+          path: { room_id: 1 },
+          body: {
+            file_name: 'report.csv',
+            file_content_base64: Buffer.from('a,b,c').toString('base64'),
+            message: '資料です',
+          },
+        }),
+      ).resolves.toEqual(okResult('{"file_id":1}', uri));
+
+      expect(uploadFile).toHaveBeenCalledWith({
+        path: '/rooms/1/files',
+        fileName: 'report.csv',
+        fileContent: Buffer.from('a,b,c'),
+        message: '資料です',
+      });
+    });
+
+    test('messageを省略した場合はキー自体を渡さない', async () => {
+      const uri = 'https://api.chatwork.com/v2/rooms/1/files';
+      uploadFile.mockResolvedValue({
+        uri,
+        ok: true,
+        status: 200,
+        response: '{"file_id":2}',
+      });
+
+      await uploadRoomFile({
+        path: { room_id: 1 },
+        body: {
+          file_name: 'report.csv',
+          file_content_base64: Buffer.from('a,b,c').toString('base64'),
+        },
+      });
+
+      expect(uploadFile).toHaveBeenCalledWith({
+        path: '/rooms/1/files',
+        fileName: 'report.csv',
+        fileContent: Buffer.from('a,b,c'),
       });
     });
   });

@@ -26,6 +26,7 @@ import {
   updateRoomMessageParamsSchema,
   updateRoomParamsSchema,
   updateRoomTasksStatusParamsSchema,
+  uploadRoomFileParamsSchema,
 } from './schema';
 import {
   acceptIncomingRequest,
@@ -59,6 +60,7 @@ import {
   updateRoomMembers,
   updateRoomMessage,
   updateRoomTaskStatus,
+  uploadRoomFile,
 } from './toolCallbacks';
 
 export function createServer() {
@@ -332,6 +334,20 @@ export function createServer() {
       },
     },
     getRoomFile,
+  );
+  server.registerTool(
+    'upload_room_file',
+    {
+      description:
+        'チャットにファイルをアップロードします。ファイル内容はBase64エンコードした文字列で渡してください。',
+      inputSchema: uploadRoomFileParamsSchema,
+      annotations: {
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    uploadRoomFile,
   );
   server.registerTool(
     'get_room_link',

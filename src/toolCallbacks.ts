@@ -27,6 +27,7 @@ import {
   updateRoomMessageParamsSchema,
   updateRoomParamsSchema,
   updateRoomTasksStatusParamsSchema,
+  uploadRoomFileParamsSchema,
 } from './schema';
 import { z } from 'zod';
 
@@ -356,6 +357,18 @@ export const getRoomFile = (req: z.infer<typeof getRoomFileParamsSchema>) =>
       method: 'GET',
       query: req.query,
       body: {},
+    })
+    .then(chatworkClientResponseToCallToolResult);
+
+export const uploadRoomFile = (
+  req: z.infer<typeof uploadRoomFileParamsSchema>,
+) =>
+  chatworkClient()
+    .uploadFile({
+      path: `/rooms/${req.path.room_id}/files`,
+      fileName: req.body.file_name,
+      fileContent: Buffer.from(req.body.file_content_base64, 'base64'),
+      ...(req.body.message === undefined ? {} : { message: req.body.message }),
     })
     .then(chatworkClientResponseToCallToolResult);
 

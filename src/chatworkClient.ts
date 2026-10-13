@@ -16,6 +16,13 @@ interface ChatworkClientRequest {
   body: Record<string, string | number | undefined>;
 }
 
+interface ChatworkFileUploadRequest {
+  path: string;
+  fileName: string;
+  fileContent: Uint8Array;
+  message?: string;
+}
+
 export interface ChatworkClientResponse {
   uri: string;
   ok: boolean;
@@ -61,6 +68,49 @@ export class ChatworkClient {
     const rawResponseText = await response.text();
 
     // Unicodeエスケープを解除する
+    let responseText: string;
+    try {
+      responseText = JSON.stringify(JSON.parse(rawResponseText));
+    } catch {
+      responseText = rawResponseText;
+    }
+
+    return {
+      uri: url.toString(),
+      ok: response.ok,
+      status: response.status,
+      response: responseText,
+    };
+  }
+
+  /**
+   * ファイルアップロード系 API は multipart/form-data 専用で、他の API のような
+   * application/x-www-form-urlencoded を受け付けないため `request` とは別メソッドにする。
+   */
+  async uploadFile(
+    req: ChatworkFileUploadRequest,
+  ): Promise<ChatworkClientResponse> {
+    const url = new URL(`https://api.chatwork.com/v2${req.path}`);
+
+    // Buffer は Uint8Array<ArrayBufferLike> であり BlobPart (ArrayBuffer 限定) に
+    // 直接は渡せないため、ArrayBuffer 裏付けの Uint8Array にコピーする
+    const fileBytes = new Uint8Array(req.fileContent.byteLength);
+    fileBytes.set(req.fileContent);
+
+    const formData = new FormData();
+    formData.append('file', new Blob([fileBytes]), req.fileName);
+    if (req.message !== undefined) {
+      formData.append('message', req.message);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      // Content-Type (boundary 付き multipart/form-data) は fetch が自動設定するため指定しない
+      headers: { 'X-ChatWorkToken': this.token },
+      body: formData,
+    });
+    const rawResponseText = await response.text();
+
     let responseText: string;
     try {
       responseText = JSON.stringify(JSON.parse(rawResponseText));

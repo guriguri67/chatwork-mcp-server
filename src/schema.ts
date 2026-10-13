@@ -319,6 +319,29 @@ export const listRoomFilesParamsSchema = z
   })
   .describe('チャットファイル一覧取得');
 
+/** @see https://developer.chatwork.com/reference/post-rooms-room_id-files */
+export const uploadRoomFileParamsSchema = z
+  .object({
+    path: z.object({
+      room_id: z.number().int().describe('ルームID'),
+    }),
+    body: z.object({
+      file_name: z
+        .string()
+        .min(1)
+        .describe('アップロードするファイル名（拡張子を含む）'),
+      file_content_base64: z
+        .string()
+        .min(1)
+        .describe('アップロードするファイルの内容（Base64エンコード済み）'),
+      message: z
+        .string()
+        .optional()
+        .describe('ファイルと一緒に投稿するメッセージ本文'),
+    }),
+  })
+  .describe('チャットファイルアップロード');
+
 /** @see https://developer.chatwork.com/reference/get-rooms-room_id-files-file_id */
 export const getRoomFileParamsSchema = z
   .object({

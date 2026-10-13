@@ -6,7 +6,7 @@ Chatwork を AI から操作するための MCP (Model Context Protocol) サー�
 
 ## できること
 
-Chatwork API v2 の操作を 31 個のツールとして公開しています。
+Chatwork API v2 の操作を 32 個のツールとして公開しています。
 
 | カテゴリ           | ツール                                                                                                                                                         |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -15,9 +15,22 @@ Chatwork API v2 の操作を 31 個のツールとして公開しています。
 | メンバー           | `list_room_members` / `update_room_members`                                                                                                                    |
 | メッセージ         | `list_room_messages` / `post_room_message` / `read_room_messages` / `unread_room_message` / `get_room_message` / `update_room_message` / `delete_room_message` |
 | タスク             | `list_room_tasks` / `create_room_task` / `get_room_task` / `update_room_task_status`                                                                           |
-| ファイル           | `list_room_files` / `get_room_file`                                                                                                                            |
+| ファイル           | `list_room_files` / `get_room_file` / `upload_room_file`                                                                                                       |
 | 招待リンク         | `get_room_link` / `create_room_link` / `update_room_link` / `delete_room_link`                                                                                 |
 | コンタクト承認依頼 | `list_incoming_requests` / `accept_incoming_request` / `reject_incoming_request`                                                                               |
+
+`upload_room_file` はファイル内容を Base64 エンコードした文字列として受け取ります（MCP のツール呼び出しはテキストの JSON のみで、バイナリを直接渡せないため）。
+
+```json
+{
+  "path": { "room_id": 123456789 },
+  "body": {
+    "file_name": "report.csv",
+    "file_content_base64": "YSxiLGM=",
+    "message": "資料です"
+  }
+}
+```
 
 ## 前提
 

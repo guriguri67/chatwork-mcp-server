@@ -21,6 +21,17 @@ Chatwork API v2 の操作を 32 個のツールとして公開しています。
 
 `upload_room_file` はファイル内容を Base64 エンコードした文字列として受け取ります（MCP のツール呼び出しはテキストの JSON のみで、バイナリを直接渡せないため）。
 
+```json
+{
+  "path": { "room_id": 123456789 },
+  "body": {
+    "file_name": "report.csv",
+    "file_content_base64": "YSxiLGM=",
+    "message": "資料です"
+  }
+}
+```
+
 ## 前提
 
 - Node.js 22（CI が想定しているバージョン）

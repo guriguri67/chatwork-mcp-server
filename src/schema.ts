@@ -319,6 +319,42 @@ export const listRoomFilesParamsSchema = z
   })
   .describe('チャットファイル一覧取得');
 
+/** @see https://developer.chatwork.com/reference/post-rooms-room_id-files */
+export const uploadRoomFileParamsSchema = z
+  .object({
+    path: z.object({
+      room_id: z.number().int().describe('ルームID'),
+    }),
+    body: z.object({
+      file_path: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'アップロードするファイルの絶対パス（MCPサーバーが動いているマシン上のパス）。stdio 起動時のみ使用可能。content_base64 とどちらか一方を指定する',
+        ),
+      content_base64: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'アップロードするファイルの中身を Base64 でエンコードした文字列。file_path とどちらか一方を指定する',
+        ),
+      file_name: z
+        .string()
+        .min(1)
+        .optional()
+        .describe(
+          'Chatwork 上でのファイル名（例: 売上.xlsx）。content_base64 のときは必須。file_path のときは省略するとパスのファイル名を使う',
+        ),
+      message: z
+        .string()
+        .optional()
+        .describe('ファイルと一緒に投稿するメッセージ本文'),
+    }),
+  })
+  .describe('チャットへのファイルアップロード');
+
 /** @see https://developer.chatwork.com/reference/get-rooms-room_id-files-file_id */
 export const getRoomFileParamsSchema = z
   .object({

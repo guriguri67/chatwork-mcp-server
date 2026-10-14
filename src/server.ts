@@ -26,6 +26,7 @@ import {
   updateRoomMessageParamsSchema,
   updateRoomParamsSchema,
   updateRoomTasksStatusParamsSchema,
+  uploadRoomFileParamsSchema,
 } from './schema';
 import {
   acceptIncomingRequest,
@@ -59,9 +60,20 @@ import {
   updateRoomMembers,
   updateRoomMessage,
   updateRoomTaskStatus,
+  uploadRoomFile,
 } from './toolCallbacks';
 
-export function createServer() {
+export interface CreateServerOptions {
+  /**
+   * `upload_room_file` の `file_path` でサーバー側のファイルを読むことを許すか。
+   * stdio のときだけ true にする（HTTP で許すと任意の呼び出し元にサーバーのファイルを読まれる）。
+   */
+  allowLocalFileRead?: boolean;
+}
+
+export function createServer({
+  allowLocalFileRead = false,
+}: CreateServerOptions = {}) {
   const server = new McpServer({
     name: 'Chatwork',
     version: __PACKAGE_VERSION__,
@@ -332,6 +344,21 @@ export function createServer() {
       },
     },
     getRoomFile,
+  );
+  server.registerTool(
+    'upload_room_file',
+    {
+      description: allowLocalFileRead
+        ? 'チャットにファイル（xlsx、csv、pdf など、最大5MB）をアップロードします。file_path にファイルの絶対パスを指定するか、content_base64 と file_name を指定します。message を付けるとファイルと一緒に投稿されます。'
+        : 'チャットにファイル（xlsx、csv、pdf など、最大5MB）をアップロードします。content_base64 にファイルの中身を Base64 で、file_name にファイル名を指定します。message を付けるとファイルと一緒に投稿されます。',
+      inputSchema: uploadRoomFileParamsSchema,
+      annotations: {
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    (req) => uploadRoomFile(req, { allowLocalFileRead }),
   );
   server.registerTool(
     'get_room_link',

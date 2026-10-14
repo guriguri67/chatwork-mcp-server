@@ -14,7 +14,8 @@
     "build": "node esbuild.config.mjs",
     "dev": "node esbuild.config.mjs --watch",
     "start:http": "node dist/index.js --transport http",
-    "inspect": "npx -y @modelcontextprotocol/inspector --config ./inspector.json"
+    "inspect": "npx -y @modelcontextprotocol/inspector --config ./inspector.json",
+    "prepare": "node esbuild.config.mjs"
   },
   "repository": {
     "type": "git",
@@ -35,6 +36,7 @@
   "description": "MCP (Model Context Protocol) server for operating Chatwork from AI",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/client": "^2.0.0",
     "@tsconfig/strictest": "^2.0.5",
     "@types/node": "^22.13.14",
     "@vitest/coverage-v8": "^5.0.1",
@@ -46,15 +48,14 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.28.0",
-    "vitest": "^5.0.1",
-    "@modelcontextprotocol/client": "^2.0.0"
+    "vitest": "^5.0.1"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "zod": "^4.6.5",
+    "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
-    "@modelcontextprotocol/node": "^2.0.0"
+    "zod": "^4.6.5"
   }
 }

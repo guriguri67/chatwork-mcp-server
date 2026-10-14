@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { CallToolResult } from '@modelcontextprotocol/server';
 import {
   afterEach,
@@ -41,6 +44,8 @@ import {
   updateRoomMembers,
   updateRoomMessage,
   updateRoomTaskStatus,
+  uploadRoomFile,
+  MAX_UPLOAD_FILE_SIZE,
 } from './toolCallbacks';
 
 /** ChatworkClientRequest は export されていないので、メソッドの引数型から取り出す */
@@ -535,6 +540,169 @@ describe('toolCallbacks.ts', () => {
           { type: 'resource', resource: { uri, text: response } },
         ],
       });
+    });
+  });
+  describe('#uploadRoomFile', () => {
+    let dir: string;
+
+    beforeEach(async () => {
+      dir = await mkdtemp(join(tmpdir(), 'upload-room-file-'));
+    });
+
+    afterEach(async () => {
+      await rm(dir, { recursive: true, force: true });
+    });
+
+    /** request に渡された FormData の file / message を取り出す */
+    const sentForm = () => {
+      const req = request.mock.calls[0]?.[0];
+      expect(req).toMatchObject({
+        path: '/rooms/123/files',
+        method: 'POST',
+        query: {},
+      });
+      const form = req?.body;
+      expect(form).toBeInstanceOf(FormData);
+      const file = (form as FormData).get('file');
+      expect(file).toBeInstanceOf(File);
+      return {
+        file: file as File,
+        message: (form as FormData).get('message'),
+      };
+    };
+
+    const errorText = (result: CallToolResult) => {
+      expect(result.isError).toBe(true);
+      const [first] = result.content;
+      return first?.type === 'text' ? first.text : '';
+    };
+
+    test('file_path のファイルを multipart で送る（日本語ファイル名もそのまま）', async () => {
+      const filePath = join(dir, '2026.6-感謝祭売上.xlsx');
+      await writeFile(filePath, 'xlsx-bytes');
+
+      await uploadRoomFile(
+        {
+          path: { room_id: 123 },
+          body: { file_path: filePath, message: '売上表です' },
+        },
+        { allowLocalFileRead: true },
+      );
+
+      const { file, message } = sentForm();
+      expect(file.name).toBe('2026.6-感謝祭売上.xlsx');
+      expect(file.type).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      expect(await file.text()).toBe('xlsx-bytes');
+      expect(message).toBe('売上表です');
+    });
+
+    test('file_name を指定するとパスのファイル名より優先する', async () => {
+      const filePath = join(dir, 'tmp.csv');
+      await writeFile(filePath, 'a,b\n1,2\n');
+
+      await uploadRoomFile(
+        {
+          path: { room_id: 123 },
+          body: { file_path: filePath, file_name: '集計.csv' },
+        },
+        { allowLocalFileRead: true },
+      );
+
+      const { file, message } = sentForm();
+      expect(file.name).toBe('集計.csv');
+      expect(file.type).toBe('text/csv');
+      expect(message).toBeNull();
+    });
+
+    test('content_base64 の中身をデコードして送る', async () => {
+      await uploadRoomFile({
+        path: { room_id: 123 },
+        body: {
+          content_base64: Buffer.from('%PDF-1.7').toString('base64'),
+          file_name: '請求書.pdf',
+        },
+      });
+
+      const { file } = sentForm();
+      expect(file.name).toBe('請求書.pdf');
+      expect(file.type).toBe('application/pdf');
+      expect(await file.text()).toBe('%PDF-1.7');
+    });
+
+    test('知らない拡張子は application/octet-stream で送る', async () => {
+      await uploadRoomFile({
+        path: { room_id: 123 },
+        body: { content_base64: 'AAEC', file_name: 'data.bin' },
+      });
+
+      expect(sentForm().file.type).toBe('application/octet-stream');
+    });
+
+    test.each([
+      {
+        name: 'file_path も content_base64 も無い',
+        body: { file_name: 'a.csv' },
+        allowLocalFileRead: true,
+        expected: 'どちらか一方だけ',
+      },
+      {
+        name: 'file_path と content_base64 の両方がある',
+        body: { file_path: '/tmp/a.csv', content_base64: 'YQ==' },
+        allowLocalFileRead: true,
+        expected: 'どちらか一方だけ',
+      },
+      {
+        name: 'HTTP など file_path を許していないサーバーで file_path を使う',
+        body: { file_path: '/etc/passwd' },
+        allowLocalFileRead: false,
+        expected: 'file_path は使えません',
+      },
+      {
+        name: 'file_path が相対パス',
+        body: { file_path: 'a.csv' },
+        allowLocalFileRead: true,
+        expected: '絶対パス',
+      },
+      {
+        name: 'file_path のファイルが存在しない',
+        body: { file_path: '/no/such/file.xlsx' },
+        allowLocalFileRead: true,
+        expected: 'ファイルを読み込めませんでした',
+      },
+      {
+        name: 'content_base64 に file_name が無い',
+        body: { content_base64: 'YQ==' },
+        allowLocalFileRead: true,
+        expected: 'file_name が必須',
+      },
+    ])(
+      '$name ときは API を呼ばずにエラーを返す',
+      async ({ body, allowLocalFileRead, expected }) => {
+        const result = await uploadRoomFile(
+          { path: { room_id: 123 }, body },
+          { allowLocalFileRead },
+        );
+
+        expect(errorText(result)).toContain(expected);
+        expect(request).not.toHaveBeenCalled();
+      },
+    );
+
+    test('5MB を超えるファイルは API を呼ばずにエラーを返す', async () => {
+      const result = await uploadRoomFile({
+        path: { room_id: 123 },
+        body: {
+          content_base64: Buffer.alloc(MAX_UPLOAD_FILE_SIZE + 1).toString(
+            'base64',
+          ),
+          file_name: 'big.xlsx',
+        },
+      });
+
+      expect(errorText(result)).toContain('5MB');
+      expect(request).not.toHaveBeenCalled();
     });
   });
 });

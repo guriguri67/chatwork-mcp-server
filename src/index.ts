@@ -68,7 +68,10 @@ async function main() {
 
   switch (transport) {
     case 'stdio':
-      await createServer().connect(new StdioServerTransport());
+      // stdio では MCP サーバーは利用者自身のマシンで動くので、ローカルファイルの送信を許す
+      await createServer({ allowLocalFileRead: true }).connect(
+        new StdioServerTransport(),
+      );
       return;
 
     case 'http': {

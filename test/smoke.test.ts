@@ -59,6 +59,7 @@ describe.skipIf(skipWithoutDist)('dist/index.js', () => {
         expect(names).toContain('get_me');
         expect(names).toContain('list_rooms');
         expect(names).toContain('post_room_message');
+        expect(names).toContain('upload_room_file');
       } finally {
         await client.close();
       }

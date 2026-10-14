@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { basename, extname, isAbsolute } from 'node:path';
 import { CallToolResult } from '@modelcontextprotocol/server';
 import { chatworkClient, ChatworkClientResponse } from './chatworkClient';
 import {
@@ -27,6 +29,7 @@ import {
   updateRoomMessageParamsSchema,
   updateRoomParamsSchema,
   updateRoomTasksStatusParamsSchema,
+  uploadRoomFileParamsSchema,
 } from './schema';
 import { z } from 'zod';
 
@@ -348,6 +351,116 @@ export const listRoomFiles = (req: z.infer<typeof listRoomFilesParamsSchema>) =>
       body: {},
     })
     .then(chatworkClientResponseToCallToolResult);
+
+/** Chatwork API のファイルアップロード上限（5MB） */
+export const MAX_UPLOAD_FILE_SIZE = 5 * 1024 * 1024;
+
+/** 拡張子から Content-Type を決める。知らない拡張子は octet-stream で送る */
+const MIME_TYPES: Record<string, string> = {
+  '.csv': 'text/csv',
+  '.txt': 'text/plain',
+  '.pdf': 'application/pdf',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.docx':
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.pptx':
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.zip': 'application/zip',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+};
+
+const errorResult = (text: string): CallToolResult => ({
+  isError: true,
+  content: [{ type: 'text', text: `Error: ${text}` }],
+});
+
+export interface UploadRoomFileOptions {
+  /**
+   * `file_path` でサーバー側のファイルを読むことを許すか。
+   *
+   * stdio では MCP サーバーは利用者自身のマシンで動くので許してよいが、Streamable HTTP では
+   * 任意の呼び出し元にサーバー上のファイルを読ませることになるため許してはいけない。
+   */
+  allowLocalFileRead: boolean;
+}
+
+export const uploadRoomFile = async (
+  req: z.infer<typeof uploadRoomFileParamsSchema>,
+  { allowLocalFileRead }: UploadRoomFileOptions = { allowLocalFileRead: false },
+): Promise<CallToolResult> => {
+  const { file_path, content_base64, message } = req.body;
+
+  if ((file_path === undefined) === (content_base64 === undefined)) {
+    return errorResult(
+      'file_path と content_base64 のどちらか一方だけを指定してください',
+    );
+  }
+
+  let content: Buffer;
+  let fileName: string;
+  if (file_path !== undefined) {
+    if (!allowLocalFileRead) {
+      return errorResult(
+        'このサーバーでは file_path は使えません。content_base64 と file_name を指定してください',
+      );
+    }
+    if (!isAbsolute(file_path)) {
+      return errorResult(
+        `file_path は絶対パスで指定してください: ${file_path}`,
+      );
+    }
+    try {
+      content = await readFile(file_path);
+    } catch (error) {
+      return errorResult(
+        `ファイルを読み込めませんでした: ${file_path} (${error instanceof Error ? error.message : String(error)})`,
+      );
+    }
+    fileName = req.body.file_name ?? basename(file_path);
+  } else {
+    if (req.body.file_name === undefined) {
+      return errorResult('content_base64 を使うときは file_name が必須です');
+    }
+    content = Buffer.from(content_base64 ?? '', 'base64');
+    fileName = req.body.file_name;
+  }
+
+  if (content.length === 0) {
+    return errorResult('ファイルが空です');
+  }
+  if (content.length > MAX_UPLOAD_FILE_SIZE) {
+    return errorResult(
+      `ファイルサイズが上限の5MBを超えています（${content.length} バイト）`,
+    );
+  }
+
+  const form = new FormData();
+  form.append(
+    'file',
+    new Blob([new Uint8Array(content)], {
+      type:
+        MIME_TYPES[extname(fileName).toLowerCase()] ??
+        'application/octet-stream',
+    }),
+    fileName,
+  );
+  if (message !== undefined) {
+    form.append('message', message);
+  }
+
+  return chatworkClient()
+    .request({
+      path: `/rooms/${req.path.room_id}/files`,
+      method: 'POST',
+      query: {},
+      body: form,
+    })
+    .then(chatworkClientResponseToCallToolResult);
+};
 
 export const getRoomFile = (req: z.infer<typeof getRoomFileParamsSchema>) =>
   chatworkClient()

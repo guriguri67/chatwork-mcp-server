@@ -6,7 +6,7 @@ Chatwork を AI から操作するための MCP (Model Context Protocol) サー�
 
 ## できること
 
-Chatwork API v2 の操作を 31 個のツールとして公開しています。
+Chatwork API v2 の操作を 32 個のツールとして公開しています。
 
 | カテゴリ           | ツール                                                                                                                                                         |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -15,9 +15,25 @@ Chatwork API v2 の操作を 31 個のツールとして公開しています。
 | メンバー           | `list_room_members` / `update_room_members`                                                                                                                    |
 | メッセージ         | `list_room_messages` / `post_room_message` / `read_room_messages` / `unread_room_message` / `get_room_message` / `update_room_message` / `delete_room_message` |
 | タスク             | `list_room_tasks` / `create_room_task` / `get_room_task` / `update_room_task_status`                                                                           |
-| ファイル           | `list_room_files` / `get_room_file`                                                                                                                            |
+| ファイル           | `list_room_files` / `get_room_file` / `upload_room_file`                                                                                                       |
 | 招待リンク         | `get_room_link` / `create_room_link` / `update_room_link` / `delete_room_link`                                                                                 |
 | コンタクト承認依頼 | `list_incoming_requests` / `accept_incoming_request` / `reject_incoming_request`                                                                               |
+
+### ファイルを送る（`upload_room_file`）
+
+xlsx・csv・pdf などのファイルをチャットにアップロードできます（Chatwork API の上限により 1 ファイル 5MB まで）。
+AI には「`2026.6-感謝祭売上.xlsx` を三州屋のチャットに送って」のように頼めば、チャットを `list_rooms` で探してから送ります。
+
+ファイルの渡し方は 2 通りあります。
+
+| 渡し方                         | 使える場面   | 例                                                                                                  |
+| ------------------------------ | ------------ | --------------------------------------------------------------------------------------------------- |
+| `file_path`（絶対パス）        | stdio のみ   | `{"file_path": "/Users/me/Documents/2026.6-感謝祭売上.xlsx", "message": "6月の感謝祭の売上表です"}` |
+| `content_base64` + `file_name` | stdio / HTTP | `{"content_base64": "UEsDBBQ...", "file_name": "2026.6-感謝祭売上.xlsx"}`                           |
+
+`file_path` は MCP サーバーが動いているマシン上のパスです。Streamable HTTP で起動したサーバーでは、
+呼び出し元にサーバー上のファイルを読ませないよう `file_path` は使えません（`content_base64` を使ってください）。
+`file_name` を省略した場合は `file_path` のファイル名がそのまま Chatwork 上の名前になります。
 
 ## 前提
 

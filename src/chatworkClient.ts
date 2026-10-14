@@ -13,7 +13,8 @@ interface ChatworkClientRequest {
   path: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   query: Record<string, string | number | undefined>;
-  body: Record<string, string | number | undefined>;
+  /** FormData を渡すと multipart/form-data で送る（ファイルアップロード用） */
+  body: Record<string, string | number | undefined> | FormData;
 }
 
 export interface ChatworkClientResponse {
@@ -38,23 +39,31 @@ export class ChatworkClient {
         url.searchParams.append(key, String(value));
       });
 
-    const body = new URLSearchParams();
-    Object.entries(req.body)
-      .filter(([, value]) => value !== undefined)
-      .forEach(([key, value]) => {
-        body.append(key, String(value));
-      });
-
     const fetchInit: RequestInit = {
       method: req.method,
       headers: {
         'X-ChatWorkToken': this.token,
-        'Content-Type': 'application/x-www-form-urlencoded',
       },
     };
 
-    if (body.size > 0) {
-      fetchInit.body = body;
+    if (req.body instanceof FormData) {
+      // Content-Type は boundary 付きで fetch が組み立てるので指定しない
+      fetchInit.body = req.body;
+    } else {
+      const body = new URLSearchParams();
+      Object.entries(req.body)
+        .filter(([, value]) => value !== undefined)
+        .forEach(([key, value]) => {
+          body.append(key, String(value));
+        });
+
+      fetchInit.headers = {
+        ...fetchInit.headers,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+      if (body.size > 0) {
+        fetchInit.body = body;
+      }
     }
 
     const response = await fetch(url.toString(), fetchInit);
